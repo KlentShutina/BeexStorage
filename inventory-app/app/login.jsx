@@ -33,7 +33,7 @@ export default function Login() {
       const data = await response.json();
 
       if (data.success) {
-        router.replace("/(tabs)");
+        router.replace("./(tabs)/myinventory");
       } else {
         Alert.alert("Gabim", data.message || "Username ose password i gabuar.");
       }
