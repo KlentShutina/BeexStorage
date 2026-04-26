@@ -1,0 +1,42 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  username String  @unique
+  password String
+  role     String  @default("Student")
+  orders   Order[]
+}
+
+model StorageSystem {
+  id         Int      @id @default(autoincrement())
+  name       String
+  macAddress String?  @unique
+  drawers    Drawer[]
+}
+
+model Drawer {
+  id        Int           @id @default(autoincrement())
+  label     String
+  itemName  String?
+  quantity  Int           @default(0)
+  storageId Int
+  storage   StorageSystem @relation(fields: [storageId], references: [id])
+}
+
+model Order {
+  id       Int    @id @default(autoincrement())
+  item     String
+  quantity String
+  status   String @default("PENDING_HOD")
+  userId   Int
+  user     User   @relation(fields: [userId], references: [id])
+}
