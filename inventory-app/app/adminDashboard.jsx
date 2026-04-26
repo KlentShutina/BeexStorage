@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
 
-// Të dhëna fiktive sa për të testuar
 const MOCK_USERS = [
   { id: '1', username: 'Albi_student', role: 'Student' },
   { id: '2', username: 'Profesor_Klarensi', role: 'Teacher' },
@@ -10,7 +9,6 @@ const MOCK_USERS = [
   { id: '5', username: 'Magazina_kryesore', role: 'Warehouse' },
 ];
 
-// Rolet që mund të zgjedhësh
 const AVAILABLE_ROLES = ['Student', 'Teacher', 'HOD', 'Finance', 'Warehouse'];
 
 export default function AdminDashboard() {
@@ -18,13 +16,11 @@ export default function AdminDashboard() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Funksioni që hap Pop-up-in për një përdorues të caktuar
   const openRoleModal = (user) => {
     setSelectedUser(user);
     setModalVisible(true);
   };
 
-  // Funksioni që ndryshon rolin dhe mbyll Pop-up-in
   const changeUserRole = (newRole) => {
     setUsers(users.map(u => u.id === selectedUser.id ? { ...u, role: newRole } : u));
     setModalVisible(false);

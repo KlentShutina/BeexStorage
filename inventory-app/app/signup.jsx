@@ -28,7 +28,6 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      // LINKU I SAKTË I RENDER
       const response = await fetch(
         "https://beex-storage-backend.onrender.com/api/register",
         {
@@ -51,7 +50,6 @@ export default function Signup() {
         );
       }
     } catch (error) {
-      // KETU ISHTE PROBLEMI - Mesazhi duhet të jetë i përgjithshëm tani
       Alert.alert(
         "Gabim Lidhjeje",
         "Nuk mund të lidhem me serverin në Cloud. Sigurohu që ke internet në telefon.",

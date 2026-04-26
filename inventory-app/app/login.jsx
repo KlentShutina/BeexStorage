@@ -21,7 +21,6 @@ export default function Login() {
     }
 
     try {
-      // NDRYSHIMI KETU: Nga IP lokale ne linkun e Render
       const response = await fetch(
         "https://beex-storage-backend.onrender.com/api/login",
         {
@@ -39,7 +38,6 @@ export default function Login() {
         Alert.alert("Gabim", data.message || "Username ose password i gabuar.");
       }
     } catch (error) {
-      // Mesazhi i ri i gabimit per Cloud
       Alert.alert(
         "Gabim",
         "Nuk u realizua lidhja me serverin. Kontrollo internetin.",
