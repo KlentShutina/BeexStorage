@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Color tokens that flip automatically in dark mode ───────────────── */
+:root {
+  --c-bg: #fafafa;
+  --c-surface: #ffffff;
+  --c-surface-alt: #f4f4f5;
+  --c-border: rgba(0, 0, 0, 0.08);
+  --c-text: #1c1c1e;
+  --c-text-muted: #5c5c5e;
+  --c-text-dim: #8e8e93;
+  --c-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --c-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-dark="true"] {
+  --c-bg: #0e0e10;
+  --c-surface: #1c1c1e;
+  --c-surface-alt: #2a2a2c;
+  --c-border: rgba(255, 255, 255, 0.1);
+  --c-text: #f5f5f7;
+  --c-text-muted: #c7c7cc;
+  --c-text-dim: #8e8e93;
+  --c-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --c-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    background: var(--c-bg);
+    color: var(--c-text);
+  }
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--c-bg);
+    color: var(--c-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Inputs and buttons inherit text color so they stay readable in dark mode */
+  input,
+  textarea,
+  select,
+  button {
+    color: inherit;
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0;
+    background: linear-gradient(to right, #fdb316, #ffca40);
+    color: #1c1c1e;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 font-semibold transition-colors;
+    border-color: #fdb316;
+    background: var(--c-surface);
+    color: var(--c-text);
+  }
+  .btn-secondary:hover {
+    background: #fff8e1;
+  }
+  [data-dark="true"] .btn-secondary:hover {
+    background: rgba(253, 179, 22, 0.12);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors;
+    color: var(--c-text-muted);
+  }
+  .btn-ghost:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--c-text);
+  }
+  [data-dark="true"] .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .card {
+    @apply rounded-2xl shadow-sm transition-all hover:shadow-md;
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-border);
+  }
+  .input-base {
+    @apply w-full rounded-xl px-4 py-3 text-sm outline-none transition-all;
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-border);
+  }
+  .input-base::placeholder {
+    color: var(--c-text-dim);
+  }
+  .input-base:focus {
+    border-color: #fdb316;
+    box-shadow: 0 0 0 3px rgba(253, 179, 22, 0.25);
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .pill-owner {
+    background: linear-gradient(to right, #fdb316, #ffca40);
+    color: #1c1c1e;
+  }
+  .pill-role {
+    background: var(--c-surface-alt);
+    color: var(--c-text);
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e6e6e6 50%, #f0f0f0 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 12px;
+  }
+  [data-dark="true"] .skeleton {
+    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    background-size: 800px 100%;
+  }
+  .sidebar-item {
+    @apply flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all;
+    color: var(--c-text-muted);
+  }
+  .sidebar-item:hover {
+    background: #fff8e1;
+    color: var(--c-text);
+  }
+  [data-dark="true"] .sidebar-item:hover {
+    background: rgba(253, 179, 22, 0.1);
+  }
+  .sidebar-item-active,
+  .sidebar-item-active:hover {
+    background: linear-gradient(to right, #fdb316, #ffca40);
+    color: #1c1c1e;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  /* Status badges keep readable contrast in both modes */
+  .badge-amber {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  [data-dark="true"] .badge-amber {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fcd34d;
+  }
+  .badge-blue {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  [data-dark="true"] .badge-blue {
+    background: rgba(96, 165, 250, 0.18);
+    color: #93c5fd;
+  }
+  .badge-emerald {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  [data-dark="true"] .badge-emerald {
+    background: rgba(52, 211, 153, 0.18);
+    color: #6ee7b7;
+  }
+  .badge-rose {
+    background: #ffe4e6;
+    color: #9f1239;
+  }
+  [data-dark="true"] .badge-rose {
+    background: rgba(251, 113, 133, 0.18);
+    color: #fda4af;
+  }
+  .badge-zinc {
+    background: var(--c-surface-alt);
+    color: var(--c-text-muted);
+  }
+  /* Error / alert containers */
+  .alert-error {
+    background: #ffe4e6;
+    color: #9f1239;
+  }
+  [data-dark="true"] .alert-error {
+    background: rgba(251, 113, 133, 0.15);
+    color: #fda4af;
+  }
+  .alert-error-text {
+    color: #9f1239;
+  }
+  [data-dark="true"] .alert-error-text {
+    color: #fda4af;
+  }
+  .alert-info {
+    background: #fff8e1;
+    color: #1c1c1e;
+  }
+  [data-dark="true"] .alert-info {
+    background: rgba(253, 179, 22, 0.15);
+    color: #fcd34d;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: linear-gradient(135deg, #fdb316 0%, #ffca40 50%, #ffe082 100%);
+  }
+  .surface-bg {
+    background: var(--c-surface);
+  }
+  .surface-alt-bg {
+    background: var(--c-surface-alt);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

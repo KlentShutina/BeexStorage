@@ -1,0 +1,160 @@
+// BeexStorage v2.0 — Prisma schema (PostgreSQL on Supabase)
+//
+// Design notes (per MVP v4.1):
+// • Roles, storage IDs, and order recipients are dynamic (§0).
+//   Roles are stored as plain strings in `Membership.role` so the list can
+//   evolve without migrations. The frontend's `ROLES` array is the single
+//   source of truth for valid values.
+// • Per-storage roles (§2): a single user has a different role in each
+//   storage. Modeled as a Membership join table between User and Storage
+//   with role + isAdmin flags scoped to that pairing.
+// • Owner safety lock (§4): each Storage has an `ownerId`. The API
+//   refuses to demote that user.
+// • Soft deletes (§5): rows and shelves have a nullable `deletedAt`. The
+//   API filters them out of read endpoints by default.
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String       @id @default(cuid())
+  username    String       @unique
+  handle      String       @unique
+  email       String       @unique
+  password    String
+  createdAt   DateTime     @default(now())
+
+  memberships Membership[]
+  ownedStorages Storage[]  @relation("OwnedStorages")
+  joinRequests JoinRequest[]
+  ordersRequested Order[]  @relation("OrderRequester")
+  orderEvents OrderEvent[]
+}
+
+model Storage {
+  id          String       @id @default(cuid())
+  name        String
+  handle      String       @unique
+  deviceId    String?      @unique
+  paired      Boolean      @default(false)
+  isPublic    Boolean      @default(false)
+  ownerId     String
+  createdAt   DateTime     @default(now())
+
+  owner       User         @relation("OwnedStorages", fields: [ownerId], references: [id])
+  memberships Membership[]
+  rows        Row[]
+  warehouses  Warehouse[]
+  joinRequests JoinRequest[]
+  orders      Order[]
+
+  @@index([isPublic])
+}
+
+// Per-storage roles (one row per (user, storage) pair)
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  storageId String
+  role      String   // "Student" | "Teacher" | "HOD" | "Finance" | "Warehouse"
+  isAdmin   Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storage Storage @relation(fields: [storageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storageId])
+  @@index([storageId])
+}
+
+model JoinRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  storageId   String
+  requestedAt DateTime @default(now())
+  status      String   @default("pending") // pending | approved | rejected
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storage Storage @relation(fields: [storageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storageId])
+  @@index([storageId, status])
+}
+
+model Row {
+  id        String   @id @default(cuid())
+  storageId String
+  letter    String
+  deletedAt DateTime?
+
+  storage Storage @relation(fields: [storageId], references: [id], onDelete: Cascade)
+  shelves Shelf[]
+
+  @@index([storageId])
+}
+
+model Shelf {
+  id        String   @id @default(cuid())
+  rowId     String
+  coord     String
+  label     String   @default("")
+  quantity  Int      @default(0)
+  isOpen    Boolean  @default(false)
+  deletedAt DateTime?
+
+  row Row @relation(fields: [rowId], references: [id], onDelete: Cascade)
+
+  @@index([rowId])
+}
+
+model Warehouse {
+  id            String   @id @default(cuid())
+  storageId    String
+  name         String
+  contactUserId String?
+
+  storage Storage @relation(fields: [storageId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@index([storageId])
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  storageId   String
+  requesterId String
+  warehouseId String?
+  item        String
+  quantity    String   // string to allow "5", "2 boxes", etc.
+  status      String   // PENDING_TEACHER | PENDING_HOD | PENDING_FINANCE | PENDING_WAREHOUSE | COMPLETED | REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  storage   Storage    @relation(fields: [storageId], references: [id], onDelete: Cascade)
+  requester User       @relation("OrderRequester", fields: [requesterId], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
+  events    OrderEvent[]
+
+  @@index([storageId, status])
+  @@index([requesterId])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  status    String
+  byUserId  String
+  at        DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  by    User  @relation(fields: [byUserId], references: [id])
+
+  @@index([orderId])
+}

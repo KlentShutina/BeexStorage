@@ -1,0 +1,33 @@
+{
+  "name": "beexstorage-app",
+  "version": "1.0.4",
+  "description": "BeexStorage — Storage Management System (mobile / Play Store)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "cap:add:android": "cap add android",
+    "cap:sync": "npm run build && cap sync",
+    "cap:open:android": "cap open android",
+    "android:build": "npm run build && cap sync android && cd android && ./gradlew assembleRelease",
+    "android:bundle": "npm run build && cap sync android && cd android && ./gradlew bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/keyboard": "^6.0.2",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^7.3.2"
+  }
+}

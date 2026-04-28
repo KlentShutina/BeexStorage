@@ -1,0 +1,30 @@
+{
+  "name": "inventory-backend",
+  "version": "2.0.0",
+  "description": "BeexStorage v2.0 backend — Express + Prisma + Postgres (Supabase)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "db:seed": "node -e \"fetch(process.env.SEED_URL || 'http://localhost:10000/api/seed', { method: 'POST' }).then(r => r.json()).then(console.log)\"",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7",
+    "prisma": "^6.19.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
