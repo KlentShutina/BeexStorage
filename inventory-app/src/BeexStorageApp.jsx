@@ -1041,7 +1041,6 @@ function ChangePasswordView({ onBack }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-
 export default function BeexStorageApp() {
   const [lang, setLang] = useState("en");
   const [dark, setDark] = useState(false);
@@ -1112,8 +1111,7 @@ export default function BeexStorageApp() {
                 </div>
               </aside>
 
-              <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
-                {/* Mobile header */}
+                <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>                {/* Mobile header */}
                 <header className="header">
                   <div className="header-brand">
                     <img src={logo} alt="" className="header-logo-img" />
