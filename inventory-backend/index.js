@@ -188,7 +188,7 @@ app.post('/api/register', async (req, res) => {
         password,
       },
     });
-    sendWelcomeEmail(user.email, user.username).catch(console.error);
+    sendWelcomeEmail(user.email, user.username).catch((err) => console.error('[SMTP] welcome email failed:', err.message));
     res.json({ success: true, user: reshapeUser(user) });
   } catch (e) {
     if (e.code === 'P2002')
@@ -207,7 +207,7 @@ app.post('/api/login', async (req, res) => {
     });
     if (!user || user.password !== password)
       return fail(res, 401, 'Invalid username or password');
-    sendLoginEmail(user.email, user.username).catch(console.error);
+    sendLoginEmail(user.email, user.username).catch((err) => console.error('[SMTP] login email failed:', err.message));
     res.json({ success: true, user: reshapeUser(user) });
   } catch (e) {
     console.error(e);

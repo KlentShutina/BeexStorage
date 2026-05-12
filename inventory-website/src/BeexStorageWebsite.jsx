@@ -446,7 +446,12 @@ function AuthShell({ children, onBack }) {
 /* ─── QR Camera Scanner ─────────────────────────────────────────────────────── */
 function QrCameraScanner({ onScan, onUnavailable }) {
   const instanceRef = useRef(null);
+  const onScanRef = useRef(onScan);
+  const onUnavailableRef = useRef(onUnavailable);
   const divId = "qr-camera-feed";
+
+  useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+  useEffect(() => { onUnavailableRef.current = onUnavailable; }, [onUnavailable]);
 
   useEffect(() => {
     const scanner = new Html5Qrcode(divId);
@@ -456,10 +461,10 @@ function QrCameraScanner({ onScan, onUnavailable }) {
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
-        (text) => { onScan(text); },
+        (text) => { onScanRef.current(text); },
         () => {}
       )
-      .catch(() => { onUnavailable(); });
+      .catch(() => { onUnavailableRef.current(); });
 
     return () => {
       if (instanceRef.current) {
@@ -507,8 +512,8 @@ function InventoryTab() {
           s.deviceId === id
       );
       if (!found) {
+        const sid = `storage_${Date.now().toString(36)}`;
         dispatch((s) => {
-          const sid = newId("storage", s);
           s.storages.push({
             id: sid,
             name: `Storage ${id}`,
@@ -526,6 +531,7 @@ function InventoryTab() {
             warehouses: [],
           });
         });
+        setActiveId(sid);
         showToast(t.scannedSuccess);
       } else if (found.members?.[currentUser.id]) {
         setActiveId(found.id);
