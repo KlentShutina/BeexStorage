@@ -3,9 +3,11 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   createContext,
   useContext,
 } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import logo from "./assets/logo.png";
 import { T } from "./i18n";
 import {
@@ -441,6 +443,39 @@ function AuthShell({ children, onBack }) {
   );
 }
 
+/* ─── QR Camera Scanner ─────────────────────────────────────────────────────── */
+function QrCameraScanner({ onScan, onUnavailable }) {
+  const instanceRef = useRef(null);
+  const divId = "qr-camera-feed";
+
+  useEffect(() => {
+    const scanner = new Html5Qrcode(divId);
+    instanceRef.current = scanner;
+
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (text) => { onScan(text); },
+        () => {}
+      )
+      .catch(() => { onUnavailable(); });
+
+    return () => {
+      if (instanceRef.current) {
+        instanceRef.current.stop().catch(() => {});
+        instanceRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="w-full overflow-hidden rounded-xl bg-black">
+      <div id={divId} style={{ width: "100%" }} />
+    </div>
+  );
+}
+
 /* ─── Inventory tab ────────────────────────────────────────────────────────── */
 function InventoryTab() {
   const { t } = useLang();
@@ -450,6 +485,7 @@ function InventoryTab() {
   const [scanning, setScanning] = useState(false);
   const [scanInput, setScanInput] = useState("");
   const [scanError, setScanError] = useState("");
+  const [cameraError, setCameraError] = useState(false);
   const [showToast, toastEl] = useToast();
 
   const myStorages = useMemo(
@@ -524,7 +560,7 @@ function InventoryTab() {
         title={t.systems}
         subtitle={`${currentUser.handle} · ${myStorages.length} ${t.storages}`}
         action={
-          <button onClick={() => setScanOpen(true)} className="btn-primary">
+          <button onClick={() => { setCameraError(false); setScanOpen(true); }} className="btn-primary">
             ⌗ {t.scanToAdd}
           </button>
         }
@@ -564,10 +600,21 @@ function InventoryTab() {
         onClose={() => !scanning && setScanOpen(false)}
         title={t.scannerTitle}
       >
-        <div className="mb-4 flex h-44 items-center justify-center rounded-2xl bg-gradient-to-br from-beex-50 to-beex-100 text-6xl">
-          📷
-        </div>
-        <p className="mb-3 text-center text-sm text-ink-muted">{t.scannerHint}</p>
+        {cameraError ? (
+          <div className="mb-4 flex h-44 items-center justify-center rounded-2xl bg-gradient-to-br from-beex-50 to-beex-100 text-6xl">
+            📷
+          </div>
+        ) : (
+          <div className="mb-4">
+            <QrCameraScanner
+              onScan={(text) => { setScanOpen(false); performScan(text); }}
+              onUnavailable={() => setCameraError(true)}
+            />
+          </div>
+        )}
+        <p className="mb-3 text-center text-sm text-ink-muted">
+          {cameraError ? t.scannerHint : "Point camera at QR code — or enter ID manually below"}
+        </p>
         {scanError && (
           <div className="mb-3 rounded-lg alert-error px-3 py-2 text-sm font-semibold">
             {scanError}
@@ -588,7 +635,7 @@ function InventoryTab() {
             {t.cancel}
           </button>
           <button
-            onClick={() => performScan(scanInput || "DEMO-NEW-ID")}
+            onClick={() => performScan(scanInput)}
             className="btn-primary flex-1"
           >
             {t.confirmScan}
@@ -1748,8 +1795,10 @@ function EmptyState({ icon, text }) {
 export default function BeexStorageWebsite() {
   const [lang, setLang] = useState("en");
   const [dark, setDark] = useState(false);
-  const [screen, setScreen] = useState("landing"); // landing | login | signup | main
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("beex.user")) || null; } catch { return null; }
+  });
+  const [screen, setScreen] = useState(() => currentUser ? "main" : "landing"); // landing | login | signup | main
   const [tab, setTab] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [state, setState] = useState(loadState);
@@ -1771,10 +1820,12 @@ export default function BeexStorageWebsite() {
   }, []);
 
   const login = (u) => {
+    localStorage.setItem("beex.user", JSON.stringify(u));
     setCurrentUser(u);
     setScreen("main");
   };
   const logout = () => {
+    localStorage.removeItem("beex.user");
     setCurrentUser(null);
     setScreen("landing");
     setTab(0);

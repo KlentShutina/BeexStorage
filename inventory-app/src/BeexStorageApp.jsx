@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, createContext, useContext } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import logo from "./assets/logo.png";
 import { appCss } from "./styles";
 import { T } from "./i18n";
@@ -148,6 +149,42 @@ function SignupScreen({ onGoLogin }) {
   );
 }
 
+// ─── QR CAMERA SCANNER ────────────────────────────────────────────────────────
+// Mounts an Html5Qrcode scanner into a stable div. Cleans up on unmount.
+function QrCameraScanner({ onScan, onUnavailable }) {
+  const instanceRef = useRef(null);
+  const divId = "qr-camera-feed";
+
+  useEffect(() => {
+    const scanner = new Html5Qrcode(divId);
+    instanceRef.current = scanner;
+    let started = false;
+
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (text) => { onScan(text); },
+        () => {}
+      )
+      .then(() => { started = true; })
+      .catch(() => { onUnavailable(); });
+
+    return () => {
+      if (instanceRef.current) {
+        instanceRef.current.stop().catch(() => {});
+        instanceRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div style={{ width: "100%", borderRadius: 12, overflow: "hidden", background: "#000" }}>
+      <div id={divId} style={{ width: "100%" }} />
+    </div>
+  );
+}
+
 // ─── INVENTORY TAB ────────────────────────────────────────────────────────────
 
 function InventoryTab() {
@@ -161,6 +198,7 @@ function InventoryTab() {
   const [scanning, setScanning] = useState(false);
   const [scanInput, setScanInput] = useState("");
   const [scanError, setScanError] = useState("");
+  const [cameraError, setCameraError] = useState(false);
   const [showToast, toastEl] = useToast();
 
   // Storages this user is a member of
@@ -246,21 +284,28 @@ function InventoryTab() {
         );
       })}
 
-      <button className="scan-fab" onClick={() => setScanOpen(true)} aria-label={t.scan}>⌗</button>
+      <button className="scan-fab" onClick={() => { setCameraError(false); setScanOpen(true); }} aria-label={t.scan}>⌗</button>
 
       {scanOpen && (
         <div className="modal-backdrop" onClick={() => !scanning && setScanOpen(false)}>
           <div className="scan-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-title">{t.scannerTitle}</div>
-            <div className="scan-cam">
-              <div className="icon">📷</div>
+            {cameraError ? (
+              <div className="scan-cam"><div className="icon">📷</div></div>
+            ) : (
+              <QrCameraScanner
+                onScan={(text) => { setScanOpen(false); performScan(text); }}
+                onUnavailable={() => setCameraError(true)}
+              />
+            )}
+            <div className="page-sub" style={{ marginBottom: 12, marginTop: 8, textAlign: "center", padding: "0 4px" }}>
+              {cameraError ? t.scannerHint : "Point camera at QR code — or enter ID manually below"}
             </div>
-            <div className="page-sub" style={{ marginBottom: 12, textAlign: "center", padding: "0 4px" }}>{t.scannerHint}</div>
             {scanError && <div className="auth-error">{scanError}</div>}
             <input className="modal-input" placeholder={t.manualIdPlaceholder}
               value={scanInput} onChange={e => setScanInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && performScan(scanInput)} />
-            <button className="modal-save" onClick={() => performScan(scanInput || "DEMO-NEW-ID")}>{t.confirmScan}</button>
+            <button className="modal-save" onClick={() => performScan(scanInput)}>{t.confirmScan}</button>
             <button className="modal-cancel" onClick={() => setScanOpen(false)}>{t.cancel}</button>
           </div>
         </div>
@@ -1044,8 +1089,10 @@ function ChangePasswordView({ onBack }) {
 export default function BeexStorageApp() {
   const [lang, setLang] = useState("en");
   const [dark, setDark] = useState(false);
-  const [screen, setScreen] = useState("login");
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("beex.user")) || null; } catch { return null; }
+  });
+  const [screen, setScreen] = useState(() => currentUser ? "main" : "login");
   const [tab, setTab] = useState(0);
   const [state, setState] = useState(loadState);
 
@@ -1068,8 +1115,17 @@ export default function BeexStorageApp() {
     });
   }, []);
 
-  const login = (user) => { setCurrentUser(user); setScreen("main"); };
-  const logout = () => { setCurrentUser(null); setScreen("login"); setTab(0); };
+  const login = (user) => {
+    localStorage.setItem("beex.user", JSON.stringify(user));
+    setCurrentUser(user);
+    setScreen("main");
+  };
+  const logout = () => {
+    localStorage.removeItem("beex.user");
+    setCurrentUser(null);
+    setScreen("login");
+    setTab(0);
+  };
 
   const tabs = [
     { id: 0, label: t.inventory, icon: "🗂", node: () => <InventoryTab /> },

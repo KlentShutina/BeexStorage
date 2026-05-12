@@ -4,20 +4,21 @@
   "description": "BeexStorage v2.0 backend — Express + Prisma + Postgres (Supabase)",
   "main": "index.js",
   "type": "commonjs",
-"scripts": {
-  "start": "node index.js",
-  "dev": "nodemon index.js",
-  "postinstall": "prisma generate",
-  "build": "prisma generate", 
-  "migrate:dev": "prisma migrate dev",
-  "migrate:deploy": "prisma migrate deploy",
-  "studio": "prisma studio"
-},
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "postinstall": "prisma generate",
+    "build": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "studio": "prisma studio"
+  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "nodemailer": "^8.0.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",

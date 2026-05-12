@@ -10,9 +10,58 @@ require('dotenv/config');
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const nodemailer = require('nodemailer');
 
 const prisma = new PrismaClient();
 const app = express();
+
+// ─── Mailer ──────────────────────────────────────────────────────────────────
+const mailer = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+async function sendWelcomeEmail(to, username) {
+  if (!process.env.SMTP_USER) return; // skip if SMTP not configured
+  await mailer.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: 'Welcome to BeexStorage!',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#4f46e5">Welcome to BeexStorage, ${username}!</h2>
+        <p>Your account has been created successfully.</p>
+        <p>You can now log in and start managing your inventory.</p>
+        <br/>
+        <p style="color:#6b7280;font-size:12px">If you did not create this account, please ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
+async function sendLoginEmail(to, username) {
+  if (!process.env.SMTP_USER) return; // skip if SMTP not configured
+  const time = new Date().toUTCString();
+  await mailer.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: 'New login to your BeexStorage account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#4f46e5">New login detected</h2>
+        <p>Hi <strong>${username}</strong>, your account was just logged in to.</p>
+        <p style="color:#6b7280">Time: ${time}</p>
+        <p>If this was you, no action is needed.<br/>
+           If you did not log in, please change your password immediately.</p>
+      </div>
+    `,
+  });
+}
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cors());
@@ -139,6 +188,7 @@ app.post('/api/register', async (req, res) => {
         password,
       },
     });
+    sendWelcomeEmail(user.email, user.username).catch(console.error);
     res.json({ success: true, user: reshapeUser(user) });
   } catch (e) {
     if (e.code === 'P2002')
@@ -157,6 +207,7 @@ app.post('/api/login', async (req, res) => {
     });
     if (!user || user.password !== password)
       return fail(res, 401, 'Invalid username or password');
+    sendLoginEmail(user.email, user.username).catch(console.error);
     res.json({ success: true, user: reshapeUser(user) });
   } catch (e) {
     console.error(e);
