@@ -153,22 +153,26 @@ function SignupScreen({ onGoLogin }) {
 // Mounts an Html5Qrcode scanner into a stable div. Cleans up on unmount.
 function QrCameraScanner({ onScan, onUnavailable }) {
   const instanceRef = useRef(null);
+  const onScanRef = useRef(onScan);
+  const onUnavailableRef = useRef(onUnavailable);
   const divId = "qr-camera-feed";
+
+  // Keep refs current so the scanner always calls the latest callbacks
+  useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+  useEffect(() => { onUnavailableRef.current = onUnavailable; }, [onUnavailable]);
 
   useEffect(() => {
     const scanner = new Html5Qrcode(divId);
     instanceRef.current = scanner;
-    let started = false;
 
     scanner
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
-        (text) => { onScan(text); },
+        (text) => { onScanRef.current(text); },
         () => {}
       )
-      .then(() => { started = true; })
-      .catch(() => { onUnavailable(); });
+      .catch(() => { onUnavailableRef.current(); });
 
     return () => {
       if (instanceRef.current) {
@@ -222,8 +226,9 @@ function InventoryTab() {
       );
       if (!found) {
         // Per MVP §4: first scanner becomes owner. Create a new storage.
+        // Generate ID outside dispatch so we can navigate to it immediately.
+        const sid = `storage_${Date.now().toString(36)}`;
         dispatch((s) => {
-          const sid = newId("storage", s);
           s.storages.push({
             id: sid, name: `Storage ${id}`, handle: `@${id.toLowerCase()}`,
             ownerId: currentUser.id, isPublic: false, deviceId: id, paired: true,
@@ -232,6 +237,7 @@ function InventoryTab() {
             joinRequests: [], rows: [], warehouses: [],
           });
         });
+        setActiveId(sid);
         showToast(t.scannedSuccess);
       } else if (found.members?.[currentUser.id]) {
         // Already member — just open it
