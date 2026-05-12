@@ -81,19 +81,16 @@ function LoginScreen({ onLogin, onGoSignup }) {
   );
 }
 
-function SignupScreen({ onGoLogin }) {
-  // Per MVP §1: 5 fields — Username, Handle, Email, Password, Confirm Password.
-  // Dev bypass (adminx/12345) skips all validation per MVP §1.
+function SignupScreen({ onGoLogin, onSignupSuccess }) {
   const { t } = useLang();
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const [form, setForm] = useState({ username: "", handle: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showToast, toastEl] = useToast();
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handle = () => {
+  const handle = async () => {
     setError("");
     const isBypass = form.username.trim() === DEV_BYPASS.username && form.password === DEV_BYPASS.password;
     if (!isBypass) {
@@ -107,21 +104,24 @@ function SignupScreen({ onGoLogin }) {
       if (state.users.some(u => u.handle.toLowerCase() === cleanHandle.toLowerCase())) { setError(t.handleTaken); return; }
     }
     setLoading(true);
-    setTimeout(() => {
-      dispatch((s) => {
-        const id = newId("user", s);
-        const cleanHandle = form.handle.startsWith("@") ? form.handle : `@${form.handle || form.username}`;
-        s.users.push({ id, username: form.username.trim(), handle: cleanHandle, email: form.email.trim(), password: form.password });
+    const cleanHandle = form.handle.startsWith("@") ? form.handle : `@${form.handle || form.username}`;
+    try {
+      const res = await fetch(`${API}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: form.username.trim(), handle: cleanHandle, email: form.email.trim(), password: form.password }),
       });
-      showToast(t.accountCreated);
-      setLoading(false);
-      setTimeout(onGoLogin, 1100);
-    }, 500);
+      const data = await res.json();
+      if (!data.success) { setError(data.message || t.serverError); setLoading(false); return; }
+      // Pass user + password so we can add to local state after verification
+      onSignupSuccess({ ...data.user, password: form.password });
+    } catch {
+      setError("Network error. Please check your connection."); setLoading(false);
+    }
   };
 
   return (
     <div className="auth-wrap">
-      {toastEl}
       <div className="auth-card">
         <div className="auth-logo-row">
           <img src={logo} alt="BeexStorage" className="auth-logo-img" />
@@ -144,6 +144,41 @@ function SignupScreen({ onGoLogin }) {
           {loading ? "…" : t.register}
         </button>
         <div className="auth-link" onClick={onGoLogin}>{t.hasAccount}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── VERIFICATION PENDING SCREEN ─────────────────────────────────────────────
+function VerificationPendingScreen({ user, onVerified, onBack }) {
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API}/check-verified/${user.id}`);
+        const data = await res.json();
+        if (data.verified) { clearInterval(interval); onVerified(); }
+      } catch { /* network hiccup — keep polling */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [user.id, onVerified]);
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card" style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>📧</div>
+        <div className="auth-title">Check your email</div>
+        <div className="auth-sub" style={{ marginBottom: 6 }}>We sent a confirmation to</div>
+        <div style={{ fontWeight: 800, color: "var(--primary-deep)", fontSize: 15, marginBottom: 20 }}>{user.email}</div>
+        <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 24 }}>
+          Click the link in the email to verify your account.<br />This screen will update automatically.
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+          <div className="spinner" />
+        </div>
+        {error && <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>}
+        <button className="modal-cancel" onClick={onBack}>← Back to login</button>
       </div>
     </div>
   );
@@ -1099,6 +1134,7 @@ export default function BeexStorageApp() {
     try { return JSON.parse(localStorage.getItem("beex.user")) || null; } catch { return null; }
   });
   const [screen, setScreen] = useState(() => currentUser ? "main" : "login");
+  const [pendingUser, setPendingUser] = useState(null);
   const [tab, setTab] = useState(0);
   const [state, setState] = useState(loadState);
 
@@ -1133,6 +1169,20 @@ export default function BeexStorageApp() {
     setTab(0);
   };
 
+  const onSignupSuccess = (user) => {
+    setPendingUser(user);
+    setScreen("verify");
+  };
+
+  const onVerified = useCallback(() => {
+    if (!pendingUser) return;
+    dispatch((s) => {
+      if (!s.users.find(u => u.id === pendingUser.id)) s.users.push(pendingUser);
+    });
+    login(pendingUser);
+    setPendingUser(null);
+  }, [pendingUser]);
+
   const tabs = [
     { id: 0, label: t.inventory, icon: "🗂", node: () => <InventoryTab /> },
     { id: 1, label: t.explore, icon: "🔍", node: () => <ExploreTab /> },
@@ -1146,7 +1196,14 @@ export default function BeexStorageApp() {
         <style>{appCss}</style>
         <div className="app" data-dark={dark.toString()}>
           {screen === "login" && <LoginScreen onLogin={login} onGoSignup={() => setScreen("signup")} />}
-          {screen === "signup" && <SignupScreen onGoLogin={() => setScreen("login")} />}
+          {screen === "signup" && <SignupScreen onGoLogin={() => setScreen("login")} onSignupSuccess={onSignupSuccess} />}
+          {screen === "verify" && pendingUser && (
+            <VerificationPendingScreen
+              user={pendingUser}
+              onVerified={onVerified}
+              onBack={() => { setPendingUser(null); setScreen("login"); }}
+            />
+          )}
           {screen === "main" && currentUser && (
             <div className="app-shell">
               {/* Sidebar — desktop ≥ 1024px (MVP §5) */}

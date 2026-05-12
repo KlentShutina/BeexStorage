@@ -11,6 +11,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import logo from "./assets/logo.png";
 import { T } from "./i18n";
 import {
+  API,
   loadState,
   saveState,
   newId,
@@ -296,68 +297,46 @@ function LoginScreen({ onLogin, onGoSignup, onBack }) {
 }
 
 /* ─── Auth: Signup ─────────────────────────────────────────────────────────── */
-function SignupScreen({ onGoLogin, onBack }) {
+function SignupScreen({ onGoLogin, onBack, onSignupSuccess }) {
   const { t } = useLang();
-  const { state, dispatch } = useApp();
-  const [f, setF] = useState({
-    username: "",
-    handle: "",
-    email: "",
-    password: "",
-    confirm: "",
-  });
+  const { state } = useApp();
+  const [f, setF] = useState({ username: "", handle: "", email: "", password: "", confirm: "" });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showToast, toastEl] = useToast();
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
-  const handle = () => {
+  const handle = async () => {
     setErr("");
-    const isBypass =
-      f.username.trim() === DEV_BYPASS.username && f.password === DEV_BYPASS.password;
+    const isBypass = f.username.trim() === DEV_BYPASS.username && f.password === DEV_BYPASS.password;
     if (!isBypass) {
-      if (
-        !f.username.trim() ||
-        !f.handle.trim() ||
-        !f.email.trim() ||
-        !f.password ||
-        !f.confirm
-      )
+      if (!f.username.trim() || !f.handle.trim() || !f.email.trim() || !f.password || !f.confirm)
         return setErr(t.fieldRequired);
       if (f.password !== f.confirm) return setErr(t.passwordMismatch);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return setErr(t.invalidEmail);
-      if (
-        state.users.some(
-          (u) => u.username.toLowerCase() === f.username.trim().toLowerCase()
-        )
-      )
+      if (state.users.some((u) => u.username.toLowerCase() === f.username.trim().toLowerCase()))
         return setErr(t.usernameTaken);
       const ch = f.handle.startsWith("@") ? f.handle : `@${f.handle}`;
       if (state.users.some((u) => u.handle.toLowerCase() === ch.toLowerCase()))
         return setErr(t.handleTaken);
     }
     setLoading(true);
-    setTimeout(() => {
-      dispatch((s) => {
-        const id = newId("user", s);
-        const ch = f.handle.startsWith("@") ? f.handle : `@${f.handle || f.username}`;
-        s.users.push({
-          id,
-          username: f.username.trim(),
-          handle: ch,
-          email: f.email.trim(),
-          password: f.password,
-        });
+    const ch = f.handle.startsWith("@") ? f.handle : `@${f.handle || f.username}`;
+    try {
+      const res = await fetch(`${API}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: f.username.trim(), handle: ch, email: f.email.trim(), password: f.password }),
       });
-      showToast(t.accountCreated);
-      setLoading(false);
-      setTimeout(onGoLogin, 1100);
-    }, 400);
+      const data = await res.json();
+      if (!data.success) { setErr(data.message || t.serverError); setLoading(false); return; }
+      onSignupSuccess({ ...data.user, password: f.password });
+    } catch {
+      setErr("Network error. Please check your connection."); setLoading(false);
+    }
   };
 
   return (
     <AuthShell onBack={onBack}>
-      {toastEl}
       <div className="mb-6 flex items-center gap-3">
         <img src={logo} alt="" className="h-12 w-12 rounded-xl" />
         <div>
@@ -440,6 +419,55 @@ function AuthShell({ children, onBack }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Email verification pending ──────────────────────────────────────────── */
+function VerificationPendingScreen({ user, onVerified, onBack }) {
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API}/check-verified/${user.id}`);
+        const data = await res.json();
+        if (data.verified) { clearInterval(interval); onVerified(); }
+      } catch { }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [user.id, onVerified]);
+
+  return (
+    <AuthShell onBack={onBack}>
+      <div className="mb-6 flex items-center gap-3">
+        <img src={logo} alt="" className="h-12 w-12 rounded-xl" />
+        <div>
+          <h1 className="text-2xl font-extrabold text-ink">Check your inbox</h1>
+          <p className="text-sm text-ink-muted">Waiting for confirmation</p>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-beex-50 p-5 text-center">
+        <div className="mb-3 text-4xl">✉️</div>
+        <p className="text-sm font-semibold text-ink">
+          We sent a verification link to
+        </p>
+        <p className="mt-1 font-mono text-sm font-bold text-beex-600 break-all">
+          {user.email}
+        </p>
+        <p className="mt-3 text-xs text-ink-muted">
+          Click the link in the email to activate your account.
+          This page will update automatically once verified.
+        </p>
+        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-ink-muted">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-beex-500/30 border-t-beex-500" />
+          Checking…
+        </div>
+      </div>
+      <button
+        onClick={onBack}
+        className="mt-4 w-full text-sm font-semibold text-beex-600 hover:underline"
+      >
+        ← Back to sign in
+      </button>
+    </AuthShell>
   );
 }
 
@@ -1804,7 +1832,8 @@ export default function BeexStorageWebsite() {
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("beex.user")) || null; } catch { return null; }
   });
-  const [screen, setScreen] = useState(() => currentUser ? "main" : "landing"); // landing | login | signup | main
+  const [screen, setScreen] = useState(() => currentUser ? "main" : "landing"); // landing | login | signup | verify | main
+  const [pendingUser, setPendingUser] = useState(null);
   const [tab, setTab] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [state, setState] = useState(loadState);
@@ -1836,6 +1865,26 @@ export default function BeexStorageWebsite() {
     setScreen("landing");
     setTab(0);
   };
+
+  const onSignupSuccess = useCallback((user) => {
+    setPendingUser(user);
+    setScreen("verify");
+  }, []);
+
+  const onVerified = useCallback(async () => {
+    if (!pendingUser) return;
+    try {
+      const res = await fetch(`${API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: pendingUser.username, password: pendingUser.password }),
+      });
+      const data = await res.json();
+      if (data.success && data.user) { login(data.user); }
+      else { login(pendingUser); }
+    } catch { login(pendingUser); }
+    setPendingUser(null);
+  }, [pendingUser]);
 
   const tabs = [
     { id: 0, label: t.inventory, icon: "🗂", node: <InventoryTab /> },
@@ -1877,6 +1926,14 @@ export default function BeexStorageWebsite() {
           <SignupScreen
             onGoLogin={() => setScreen("login")}
             onBack={() => setScreen("landing")}
+            onSignupSuccess={onSignupSuccess}
+          />
+        )}
+        {screen === "verify" && pendingUser && (
+          <VerificationPendingScreen
+            user={pendingUser}
+            onVerified={onVerified}
+            onBack={() => setScreen("login")}
           />
         )}
         {screen === "main" && currentUser && (

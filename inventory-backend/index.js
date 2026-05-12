@@ -9,6 +9,7 @@
 require('dotenv/config');
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const nodemailer = require('nodemailer');
 
@@ -39,6 +40,29 @@ async function sendWelcomeEmail(to, username) {
         <p>You can now log in and start managing your inventory.</p>
         <br/>
         <p style="color:#6b7280;font-size:12px">If you did not create this account, please ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
+async function sendVerificationEmail(to, username, token) {
+  if (!process.env.SMTP_USER) return;
+  const link = `${process.env.BASE_URL || 'http://localhost:3000'}/api/verify-email?token=${token}`;
+  await mailer.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: 'Verify your BeexStorage account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#4f46e5">Verify your email, ${username}!</h2>
+        <p>Thanks for signing up. Click the button below to confirm your email address and activate your account.</p>
+        <div style="text-align:center;margin:32px 0">
+          <a href="${link}" style="background:linear-gradient(135deg,#FFC107,#FFD93D);color:#000;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:800;font-size:16px;display:inline-block">
+            ✅ Verify Email
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:12px">Or copy this link: <a href="${link}">${link}</a></p>
+        <p style="color:#6b7280;font-size:12px">If you did not create this account, ignore this email.</p>
       </div>
     `,
   });
@@ -179,6 +203,7 @@ app.post('/api/register', async (req, res) => {
   if (!username || !handle || !email || !password)
     return fail(res, 400, 'Missing required fields');
   const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
+  const verificationToken = crypto.randomUUID();
   try {
     const user = await prisma.user.create({
       data: {
@@ -186,10 +211,13 @@ app.post('/api/register', async (req, res) => {
         handle: cleanHandle,
         email: email.trim(),
         password,
+        emailVerified: false,
+        verificationToken,
       },
     });
-    sendWelcomeEmail(user.email, user.username).catch((err) => console.error('[SMTP] welcome email failed:', err.message));
-    res.json({ success: true, user: reshapeUser(user) });
+    sendVerificationEmail(user.email, user.username, verificationToken)
+      .catch((err) => console.error('[SMTP] verification email failed:', err.message));
+    res.json({ success: true, user: reshapeUser(user), verified: false });
   } catch (e) {
     if (e.code === 'P2002')
       return fail(res, 409, 'Username, handle, or email already taken');
@@ -207,6 +235,8 @@ app.post('/api/login', async (req, res) => {
     });
     if (!user || user.password !== password)
       return fail(res, 401, 'Invalid username or password');
+    if (!user.emailVerified)
+      return res.status(403).json({ success: false, needsVerification: true, userId: user.id, email: user.email, message: 'Please verify your email before logging in' });
     sendLoginEmail(user.email, user.username).catch((err) => console.error('[SMTP] login email failed:', err.message));
     res.json({ success: true, user: reshapeUser(user) });
   } catch (e) {
@@ -214,6 +244,53 @@ app.post('/api/login', async (req, res) => {
     fail(res, 500, 'Server error');
   }
 });
+
+// ─── Email verification ──────────────────────────────────────────────────────
+
+// GET /api/verify-email?token=xxx  — clicked from the email link
+app.get('/api/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send(verifyPage('Invalid link', 'No token provided.', false));
+  try {
+    const user = await prisma.user.findUnique({ where: { verificationToken: token } });
+    if (!user) return res.send(verifyPage('Link expired', 'This verification link is invalid or has already been used.', false));
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, verificationToken: null },
+    });
+    res.send(verifyPage('Email verified!', `Your account <strong>${user.username}</strong> is now active. You can return to the app and log in.`, true));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(verifyPage('Error', 'Something went wrong. Please try again.', false));
+  }
+});
+
+// GET /api/check-verified/:userId  — polled by the frontend every few seconds
+app.get('/api/check-verified/:userId', async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { emailVerified: true } });
+    if (!user) return fail(res, 404, 'User not found');
+    res.json({ verified: user.emailVerified });
+  } catch (e) {
+    console.error(e);
+    fail(res, 500, 'Server error');
+  }
+});
+
+function verifyPage(title, body, success) {
+  const color = success ? '#22c55e' : '#ef4444';
+  const icon  = success ? '✅' : '❌';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — BeexStorage</title>
+<style>body{font-family:system-ui,sans-serif;background:#f5f5f7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box}
+.card{background:#fff;border-radius:24px;padding:40px 32px;max-width:420px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+.icon{font-size:56px;margin-bottom:16px}.title{font-size:24px;font-weight:800;color:#1c1c1e;margin-bottom:10px}
+.body{font-size:15px;color:#5c5c5e;line-height:1.6}.close{margin-top:28px;padding:13px 28px;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#FFC107,#FFD93D);color:#000}</style>
+</head><body><div class="card"><div class="icon">${icon}</div><div class="title">${title}</div>
+<div class="body">${body}</div>
+${success ? '<button class="close" onclick="window.close()">Close and return to app</button>' : ''}
+</div></body></html>`;
+}
 
 // ─── Snapshot ───────────────────────────────────────────────────────────────
 // Returns the entire app state. The frontend hits this on login + after
