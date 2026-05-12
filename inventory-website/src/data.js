@@ -3,7 +3,7 @@
 // Nothing here is hardcoded against a particular user/role string — every check
 // goes through helper functions that read from the storage's members map.
 
-export const API = "https://beex-storage-backend.onrender.com/api";
+export const API = "https://beexstorage.onrender.com/api";
 
 // Roles list is the single source of truth. Add a role here and it appears
 // everywhere (admin role-picker, RBAC pipeline, signup defaults).

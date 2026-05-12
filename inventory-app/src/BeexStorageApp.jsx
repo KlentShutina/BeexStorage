@@ -247,6 +247,23 @@ function InventoryTab() {
   );
 
   const cur = state.storages.find(s => s.id === activeId);
+  const isDevUser = currentUser.username === DEV_BYPASS.username;
+
+  const addStorageDirect = () => {
+    const sid = `storage_${Date.now().toString(36)}`;
+    const num = myStorages.length + 1;
+    dispatch((s) => {
+      s.storages.push({
+        id: sid, name: `Storage ${num}`, handle: `@storage${num}`,
+        ownerId: currentUser.id, isPublic: false, deviceId: null, paired: false,
+        createdAt: Date.now(),
+        members: { [currentUser.id]: { role: "Teacher", isAdmin: true, joinedAt: Date.now() } },
+        joinRequests: [], rows: [], warehouses: [],
+      });
+    });
+    setActiveId(sid);
+    showToast(t.scannedSuccess);
+  };
 
   // ─── SCANNING (Universal Scanner — MVP §2) ─────────────────────────────────
   const performScan = (rawInput) => {
@@ -325,7 +342,7 @@ function InventoryTab() {
         );
       })}
 
-      <button className="scan-fab" onClick={() => { setCameraError(false); setScanOpen(true); }} aria-label={t.scan}>⌗</button>
+      <button className="scan-fab" onClick={() => isDevUser ? addStorageDirect() : (setCameraError(false), setScanOpen(true))} aria-label={t.scan}>⌗</button>
 
       {scanOpen && (
         <div className="modal-backdrop" onClick={() => !scanning && setScanOpen(false)}>
@@ -374,9 +391,18 @@ function StorageDetail({ storage, onBack }) {
   const [tempLabel, setTempLabel] = useState("");
   const [tempQty, setTempQty] = useState("0");
   const [confirm, setConfirm] = useState(null);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const role = getRole(storage, currentUser.id);
   const canEdit = canEditInventory(role) || isAdmin(storage, currentUser.id);
+  const isMgr = isAdmin(storage, currentUser.id);
+
+  const setMemberRole = (userId, newRole) => {
+    dispatch((s) => {
+      const tgt = s.storages.find(x => x.id === storage.id);
+      if (tgt?.members?.[userId]) tgt.members[userId].role = newRole;
+    });
+  };
   const rows = visibleRows(storage.rows);
 
   const addRow = () => dispatch((s) => {
@@ -520,6 +546,9 @@ function StorageDetail({ storage, onBack }) {
             {isEdit ? t.done : t.edit}
           </button>
         )}
+        {isMgr && (
+          <button className="edit-btn" onClick={() => setMembersOpen(true)}>👥</button>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -568,6 +597,31 @@ function StorageDetail({ storage, onBack }) {
               style={{ background: "linear-gradient(135deg,#4ADE80,#22C55E)", color: "#fff" }}
               onClick={addShelf}>⊞ {t.addDrawer}</button>
           )}
+        </div>
+      )}
+
+      {membersOpen && (
+        <div className="modal-backdrop" onClick={() => setMembersOpen(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">👥 Members</div>
+            {Object.entries(storage.members || {}).map(([uid, m]) => (
+              <div key={uid} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
+                  {uid === currentUser.id ? "You" : uid}
+                  {storage.ownerId === uid && " 👑"}
+                </div>
+                <select
+                  value={m.role}
+                  disabled={storage.ownerId === uid}
+                  onChange={e => setMemberRole(uid, e.target.value)}
+                  style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-alt)", color: "var(--text)" }}
+                >
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            ))}
+            <button className="modal-cancel" onClick={() => setMembersOpen(false)}>Close</button>
+          </div>
         </div>
       )}
     </div>

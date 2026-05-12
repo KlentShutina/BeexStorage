@@ -526,6 +526,23 @@ function InventoryTab() {
     [state.storages, currentUser.id]
   );
   const cur = state.storages.find((s) => s.id === activeId);
+  const isDevUser = currentUser.username === DEV_BYPASS.username;
+
+  const addStorageDirect = () => {
+    const sid = `storage_${Date.now().toString(36)}`;
+    const num = myStorages.length + 1;
+    dispatch((s) => {
+      s.storages.push({
+        id: sid, name: `Storage ${num}`, handle: `@storage${num}`,
+        ownerId: currentUser.id, isPublic: false, deviceId: null, paired: false,
+        createdAt: Date.now(),
+        members: { [currentUser.id]: { role: "Teacher", isAdmin: true, joinedAt: Date.now() } },
+        joinRequests: [], rows: [], warehouses: [],
+      });
+    });
+    setActiveId(sid);
+    showToast(t.scannedSuccess);
+  };
 
   const performScan = (raw) => {
     setScanError("");
@@ -594,7 +611,7 @@ function InventoryTab() {
         title={t.systems}
         subtitle={`${currentUser.handle} · ${myStorages.length} ${t.storages}`}
         action={
-          <button onClick={() => { setCameraError(false); setScanOpen(true); }} className="btn-primary">
+          <button onClick={() => isDevUser ? addStorageDirect() : (setCameraError(false), setScanOpen(true))} className="btn-primary">
             ⌗ {t.scanToAdd}
           </button>
         }
@@ -698,9 +715,18 @@ function StorageDetail({ storage, onBack }) {
   const [tempLabel, setTempLabel] = useState("");
   const [tempQty, setTempQty] = useState("0");
   const [confirm, setConfirm] = useState(null);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const role = getRole(storage, currentUser.id);
   const canEdit = canEditInventory(role) || isAdmin(storage, currentUser.id);
+  const isMgr = isAdmin(storage, currentUser.id);
+
+  const setMemberRole = (userId, newRole) => {
+    dispatch((s) => {
+      const tgt = s.storages.find((x) => x.id === storage.id);
+      if (tgt?.members?.[userId]) tgt.members[userId].role = newRole;
+    });
+  };
   const rows = visibleRows(storage.rows);
 
   const addRow = () =>
@@ -816,14 +842,21 @@ function StorageDetail({ storage, onBack }) {
             </div>
           </div>
         </div>
-        {canEdit && (
-          <button
-            onClick={() => setIsEdit((p) => !p)}
-            className={isEdit ? "btn-primary" : "btn-secondary"}
-          >
-            {isEdit ? t.done : "✎ " + t.edit}
-          </button>
-        )}
+        <div className="flex gap-2">
+          {isMgr && (
+            <button onClick={() => setMembersOpen(true)} className="btn-secondary">
+              👥 Members
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => setIsEdit((p) => !p)}
+              className={isEdit ? "btn-primary" : "btn-secondary"}
+            >
+              {isEdit ? t.done : "✎ " + t.edit}
+            </button>
+          )}
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -981,6 +1014,33 @@ function StorageDetail({ storage, onBack }) {
             {t.delete}
           </button>
         </div>
+      </Modal>
+
+      <Modal open={membersOpen} onClose={() => setMembersOpen(false)} title="👥 Members">
+        <div className="space-y-3">
+          {Object.entries(storage.members || {}).map(([uid, m]) => (
+            <div key={uid} className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-beex-500 to-beex-400 text-sm font-bold text-beex-ink">
+                {uid[0].toUpperCase()}
+              </div>
+              <div className="flex-1 text-sm font-semibold text-ink">
+                {uid === currentUser.id ? "You" : uid}
+                {storage.ownerId === uid && " 👑"}
+              </div>
+              <select
+                value={m.role}
+                disabled={storage.ownerId === uid}
+                onChange={(e) => setMemberRole(uid, e.target.value)}
+                className="input-base w-36 py-1 text-sm disabled:opacity-50"
+              >
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => setMembersOpen(false)} className="btn-secondary mt-5 w-full">
+          Close
+        </button>
       </Modal>
     </div>
   );

@@ -1,5 +1,5 @@
 // ─── DATA LAYER (Mock DB) ─────────────────────────────────────────────────────
-export const API = "https://beex-storage-backend.onrender.com/api";
+export const API = "https://beexstorage.onrender.com/api";
 
 export const ROLES = ["Student", "Teacher", "HOD", "Finance", "Warehouse"];
 export const ORDER_PIPELINE = ["Teacher", "HOD", "Finance", "Warehouse"];
